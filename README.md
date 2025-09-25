@@ -75,6 +75,9 @@ docker build -f build/Dockerfile -t bedrock-proxy .
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PORT` | HTTP server port | `8080` |
+| `TLS_PORT` | HTTPS server port | `8443` |
+| `TLS_CERT_FILE` | TLS certificate file path | - |
+| `TLS_KEY_FILE` | TLS private key file path | - |
 | `AWS_REGION` | AWS region | `us-east-1` |
 | `GIN_MODE` | Gin mode (debug/release) | `release` |
 | `LOG_LEVEL` | Logging level | `info` |
@@ -116,9 +119,20 @@ The proxy requires the following IAM permissions:
 - `POST /v1/bedrock/invoke-model` - Invoke Bedrock model
 - `POST /bedrock/invoke-model` - Alternative endpoint
 
-Example request:
+Example requests:
 ```bash
+# HTTP request
 curl -X POST http://localhost:8080/v1/bedrock/invoke-model \
+  -H "Content-Type: application/json" \
+  -d '{
+    "modelId": "amazon.titan-text-express-v1",
+    "contentType": "application/json",
+    "accept": "application/json",
+    "body": "{\"inputText\":\"Hello World\"}"
+  }'
+
+# HTTPS request (if TLS is configured)
+curl -X POST https://localhost:8443/v1/bedrock/invoke-model \
   -H "Content-Type: application/json" \
   -d '{
     "modelId": "amazon.titan-text-express-v1",
@@ -271,6 +285,15 @@ export LOG_LEVEL=debug
 ## License
 
 Licensed under the Apache License, Version 2.0 - see LICENSE file for details.
+
+## Disclaimer
+
+This software is provided "as is" without warranty of any kind. No commitments
+are made regarding throughput, reliability, latency, or any performance
+characteristics. Use at your own risk.
+
+The software is not intended for use in safety-critical systems or where
+failure could result in personal injury or severe property or environmental damage.
 
 ## Support
 
