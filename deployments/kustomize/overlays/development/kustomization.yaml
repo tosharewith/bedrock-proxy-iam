@@ -9,9 +9,10 @@ namespace: bedrock-development
 resources:
   - ../../base
 
-commonLabels:
-  environment: development
-  tier: development
+labels:
+  - pairs:
+      environment: development
+      tier: development
 
 namePrefix: dev-
 
@@ -19,19 +20,25 @@ images:
   - name: bedrock-proxy
     newTag: "dev-latest"
 
-configMapGenerator:
-  - name: bedrock-proxy-config
-    behavior: merge
-    literals:
-      - GIN_MODE=debug
-      - LOG_LEVEL=debug
-      - AWS_REGION=us-west-2
-
 replicas:
   - name: bedrock-proxy
     count: 1
 
 patches:
+  # Override ConfigMap data for development
+  - target:
+      kind: ConfigMap
+      name: bedrock-proxy-config
+    patch: |-
+      - op: replace
+        path: /data/AWS_REGION
+        value: "us-west-2"
+      - op: replace
+        path: /data/GIN_MODE
+        value: "debug"
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: "debug"
   # Development resource limits (smaller)
   - target:
       kind: Deployment

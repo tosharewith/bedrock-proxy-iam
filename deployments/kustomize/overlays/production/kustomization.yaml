@@ -10,22 +10,16 @@ resources:
   - ../../base
   - vault-secret.yaml  # Vault integration for production
 
-commonLabels:
-  environment: production
-  tier: production
-  criticality: high
+labels:
+  - pairs:
+      environment: production
+      tier: production
+      criticality: high
 
 images:
   - name: bedrock-proxy
     newTag: "1.0.0"  # Use specific version tags in production
 
-configMapGenerator:
-  - name: bedrock-proxy-config
-    behavior: merge
-    literals:
-      - AWS_REGION=us-east-1
-      - LOG_LEVEL=warn
-      - GIN_MODE=release
 
 replicas:
   - name: bedrock-proxy

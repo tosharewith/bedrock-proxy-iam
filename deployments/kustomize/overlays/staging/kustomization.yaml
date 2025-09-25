@@ -9,9 +9,10 @@ namespace: bedrock-staging
 resources:
   - ../../base
 
-commonLabels:
-  environment: staging
-  tier: staging
+labels:
+  - pairs:
+      environment: staging
+      tier: staging
 
 namePrefix: staging-
 
@@ -19,12 +20,6 @@ images:
   - name: bedrock-proxy
     newTag: "staging-latest"
 
-configMapGenerator:
-  - name: bedrock-proxy-config
-    behavior: merge
-    literals:
-      - AWS_REGION=us-east-1
-      - LOG_LEVEL=info
 
 replicas:
   - name: bedrock-proxy

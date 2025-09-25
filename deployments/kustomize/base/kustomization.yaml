@@ -16,23 +16,17 @@ resources:
   - servicemonitor.yaml
   - networkpolicy.yaml
 
-commonLabels:
-  app.kubernetes.io/name: bedrock-proxy
-  app.kubernetes.io/part-of: bedrock-proxy
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/name: bedrock-proxy
+      app.kubernetes.io/part-of: bedrock-proxy
+      app.kubernetes.io/managed-by: kustomize
 
 images:
   - name: bedrock-proxy
     newTag: "1.0.0"
 
-configMapGenerator:
-  - name: bedrock-proxy-config
-    literals:
-      - AWS_REGION=us-east-1
-      - GIN_MODE=release
-      - LOG_LEVEL=info
-      - AWS_SDK_LOAD_CONFIG=true
-      - AWS_EC2_METADATA_DISABLED=false
+configMapGenerator: []
 
 secretGenerator: []
 

@@ -1,0 +1,40 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bedrock-proxy-netpol
+  namespace: bedrock-system
+  labels:
+    app.kubernetes.io/name: bedrock-proxy
+    app.kubernetes.io/part-of: bedrock-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: bedrock-proxy
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: bedrock-system
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Allow DNS
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  # Allow HTTPS (for AWS API calls)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
