@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bedrock-proxy-config
+  namespace: bedrock-system
+data:
+  AWS_REGION: "us-east-1"
+  GIN_MODE: "release"
+  LOG_LEVEL: "info"
+  # Private VPC specific settings
+  AWS_SDK_LOAD_CONFIG: "true"
+  AWS_EC2_METADATA_DISABLED: "false"  # Needed for IMDS in private VPC

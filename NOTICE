@@ -1,0 +1,77 @@
+Bedrock IAM Proxy
+Copyright 2025 Bedrock IAM Proxy Contributors
+
+This product includes software developed at:
+- The Go Project (https://golang.org/)
+- Amazon Web Services, Inc. (https://aws.amazon.com/)
+
+This software contains the following open source components:
+
+================================================================================
+
+AWS SDK for Go v2
+Copyright 2020 Amazon.com, Inc. or its affiliates
+Licensed under the Apache License, Version 2.0
+https://github.com/aws/aws-sdk-go-v2
+
+================================================================================
+
+Gin Web Framework
+Copyright (c) 2014 Manuel Martínez-Almeida
+Licensed under the MIT License
+https://github.com/gin-gonic/gin
+
+================================================================================
+
+Prometheus Go Client Library
+Copyright 2012-2015 The Prometheus Authors
+Licensed under the Apache License, Version 2.0
+https://github.com/prometheus/client_golang
+
+================================================================================
+
+Go Programming Language
+Copyright (c) 2009 The Go Authors
+Licensed under the BSD 3-Clause License
+https://golang.org/
+
+================================================================================
+
+Additional third-party libraries and their respective licenses can be found
+in the go.mod file and their corresponding LICENSE files in the vendor directory
+or their respective repositories.
+
+For a complete list of dependencies and their licenses, run:
+  go mod graph
+  go list -m -json all
+
+================================================================================
+
+This product may include cryptographic software. The country in which you
+currently reside may have restrictions on the import, possession, use, and/or
+re-export to another country, of encryption software. BEFORE using any
+encryption software, please check your country's laws, regulations and
+policies concerning the import, possession, or use, and re-export of
+encryption software, to see if this is permitted.
+
+================================================================================
+
+No Warranty: This software is provided "as is" without warranty of any kind.
+No commitments are made regarding throughput, reliability, latency, or any
+performance characteristics. Use at your own risk.
+
+The software is not intended for use in safety-critical systems or where
+failure could result in personal injury or severe property or environmental
+damage.
+
+================================================================================
+
+Trademark Notice: AWS, Amazon Bedrock, and related marks are trademarks of
+Amazon.com, Inc. or its affiliates. This project is not affiliated with,
+endorsed by, or sponsored by Amazon.com, Inc.
+
+================================================================================
+
+Export Control: This software may be subject to export controls under applicable
+laws and regulations. Users are responsible for compliance with all applicable
+export control laws.

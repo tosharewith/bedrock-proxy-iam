@@ -1,0 +1,97 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bedrock-proxy
+bedrock-proxy-*
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.out
+
+# Dependency directories
+vendor/
+
+# Go workspace files
+go.work
+go.work.sum
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+dist/
+build/output/
+*.tar.gz
+*.zip
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Kubernetes secrets
+*-secret.yaml
+*-secrets.yaml
+
+# Terraform files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Docker files
+.dockerignore
+
+# Security scan results
+*.sarif
+dependency-check-report.*
+gosec-results.*
+trivy-results.*
+security-report.md
+
+# Profiling files
+*.prof
+*.pprof
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# AWS credentials (should never be committed)
+.aws/
+credentials
+
+# Local development
+.local/
+.cache/
