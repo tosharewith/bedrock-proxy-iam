@@ -185,7 +185,6 @@ func (bp *BedrockProxy) errorHandler(rw http.ResponseWriter, req *http.Request, 
 	// Write JSON response (simple approach)
 	rw.Write([]byte(`{"error":"Bedrock service unavailable","message":"The Bedrock service is currently unavailable. Please try again later."}`))
 
-
 	// Record error in health checker
 	bp.healthChecker.RecordError()
 }

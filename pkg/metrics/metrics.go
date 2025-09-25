@@ -9,8 +9,8 @@ var (
 	// RequestDuration tracks request duration for Bedrock API calls
 	RequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "bedrock_proxy_request_duration_seconds",
-			Help: "Duration of Bedrock proxy requests in seconds",
+			Name:    "bedrock_proxy_request_duration_seconds",
+			Help:    "Duration of Bedrock proxy requests in seconds",
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1ms to ~32s
 		},
 		[]string{"method", "status"},
@@ -28,8 +28,8 @@ var (
 	// HTTPRequestDuration tracks HTTP request duration
 	HTTPRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "http_request_duration_seconds",
-			Help: "HTTP request duration in seconds",
+			Name:    "http_request_duration_seconds",
+			Help:    "HTTP request duration in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"method", "path"},

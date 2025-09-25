@@ -10,13 +10,13 @@ import (
 
 // Checker provides health and readiness checking functionality
 type Checker struct {
-	healthy      int32
-	ready        int32
-	errors       int64
-	successes    int64
-	lastError    time.Time
-	lastSuccess  time.Time
-	startTime    time.Time
+	healthy     int32
+	ready       int32
+	errors      int64
+	successes   int64
+	lastError   time.Time
+	lastSuccess time.Time
+	startTime   time.Time
 }
 
 // NewChecker creates a new health checker
@@ -86,14 +86,14 @@ func (c *Checker) getErrorRate() float64 {
 // GetStats returns health statistics
 func (c *Checker) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"healthy":       c.IsHealthy(),
-		"ready":         c.IsReady(),
-		"errors":        atomic.LoadInt64(&c.errors),
-		"successes":     atomic.LoadInt64(&c.successes),
-		"error_rate":    c.getErrorRate(),
-		"uptime":        time.Since(c.startTime).String(),
-		"last_error":    c.lastError.Format(time.RFC3339),
-		"last_success":  c.lastSuccess.Format(time.RFC3339),
+		"healthy":      c.IsHealthy(),
+		"ready":        c.IsReady(),
+		"errors":       atomic.LoadInt64(&c.errors),
+		"successes":    atomic.LoadInt64(&c.successes),
+		"error_rate":   c.getErrorRate(),
+		"uptime":       time.Since(c.startTime).String(),
+		"last_error":   c.lastError.Format(time.RFC3339),
+		"last_success": c.lastSuccess.Format(time.RFC3339),
 	}
 }
 
