@@ -1,0 +1,36 @@
+---
+# PodDisruptionBudget for high availability during scaling
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bedrock-proxy-pdb
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+spec:
+  # Ensure at least 2 pods are available during disruptions
+  minAvailable: 2
+
+  # Alternative: maxUnavailable: 30%  # Allow max 30% of pods to be unavailable
+
+  selector:
+    matchLabels:
+      app: bedrock-proxy
+
+---
+# PodDisruptionBudget for voluntary disruptions (maintenance, etc.)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bedrock-proxy-pdb-voluntary
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+    disruption-type: voluntary
+spec:
+  # More conservative for voluntary disruptions
+  minAvailable: 3  # Ensure minimum 3 pods for voluntary disruptions
+
+  selector:
+    matchLabels:
+      app: bedrock-proxy

@@ -1,0 +1,231 @@
+---
+# Deployment with VPA/HPA optimizations
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bedrock-proxy
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+    version: v1.0.0
+  annotations:
+    # VPA annotations
+    vpa.autoscaling.k8s.io/cpu-policy: "auto"
+    vpa.autoscaling.k8s.io/memory-policy: "auto"
+    # HPA annotations
+    autoscaling.alpha.kubernetes.io/metrics: '[{"type":"Resource","resource":{"name":"cpu","targetAverageUtilization":70}},{"type":"Resource","resource":{"name":"memory","targetAverageUtilization":80}}]'
+spec:
+  # Initial replicas - HPA will manage this
+  replicas: 3
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Ensure zero-downtime deployments
+
+  selector:
+    matchLabels:
+      app: bedrock-proxy
+
+  template:
+    metadata:
+      labels:
+        app: bedrock-proxy
+        version: v1.0.0
+      annotations:
+        # Prometheus scraping
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+        # VPA annotations for pod template
+        vpa.autoscaling.k8s.io/cpu-policy: "auto"
+        vpa.autoscaling.k8s.io/memory-policy: "auto"
+
+    spec:
+      serviceAccountName: bedrock-proxy-sa
+
+      # Node affinity for performance
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: workload-type
+                operator: In
+                values: ["bedrock-proxy"]
+          - weight: 80
+            preference:
+              matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: ["m5.large", "m5.xlarge", "c5.large", "c5.xlarge"]
+
+        # Pod anti-affinity for high availability
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values: ["bedrock-proxy"]
+              topologyKey: kubernetes.io/hostname
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values: ["bedrock-proxy"]
+              topologyKey: topology.kubernetes.io/zone
+
+      # Tolerations for dedicated nodes
+      tolerations:
+      - key: "bedrock-proxy"
+        operator: "Equal"
+        value: "dedicated"
+        effect: "NoSchedule"
+
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
+      # DNS configuration for private VPC
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
+
+      containers:
+      - name: bedrock-proxy
+        image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/bedrock-proxy:v1.0.0
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+
+        env:
+        - name: PORT
+          value: "8080"
+        - name: TLS_PORT
+          value: "8443"
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-proxy-config
+              key: AWS_REGION
+        - name: GIN_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-proxy-config
+              key: GIN_MODE
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-proxy-config
+              key: LOG_LEVEL
+
+        # AWS IRSA environment variables
+        - name: AWS_ROLE_ARN
+          value: "arn:aws:iam::ACCOUNT_ID:role/bedrock-proxy-cluster-bedrock-proxy-role"
+        - name: AWS_WEB_IDENTITY_TOKEN_FILE
+          value: "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
+
+        # Resource requests/limits - VPA will adjust these
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+            ephemeral-storage: 2Gi
+
+        # Health checks optimized for autoscaling
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 2  # Fail faster for scaling decisions
+
+        # Startup probe for initialization
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 20  # Allow 100s for startup
+          successThreshold: 1
+
+        # Security context
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          capabilities:
+            drop:
+            - ALL
+
+        # Volume mounts
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-run
+          mountPath: /var/run
+        - name: cache
+          mountPath: /cache
+
+      # Volumes
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: var-run
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: cache
+        emptyDir:
+          sizeLimit: 500Mi
+
+      # Graceful termination
+      terminationGracePeriodSeconds: 30
+
+      # Priority class for autoscaling
+      priorityClassName: system-cluster-critical

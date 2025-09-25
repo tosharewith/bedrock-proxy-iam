@@ -1,0 +1,69 @@
+---
+# ServiceMonitor for Prometheus with HPA custom metrics
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: bedrock-proxy-metrics
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+    monitoring: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: bedrock-proxy
+
+  # Monitor both regular and headless services
+  namespaceSelector:
+    matchNames:
+    - bedrock-system
+
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s      # Scrape every 15 seconds for HPA responsiveness
+    scrapeTimeout: 10s
+    honorLabels: true
+    # Additional metric relabeling for HPA
+    metricRelabelings:
+    # Relabel for HPA custom metrics
+    - sourceLabels: [__name__]
+      regex: 'bedrock_proxy_request_duration_seconds'
+      targetLabel: '__tmp_hpa_metric'
+      replacement: 'bedrock_proxy_request_duration_seconds'
+    - sourceLabels: [__name__]
+      regex: 'bedrock_proxy_requests_total'
+      targetLabel: '__tmp_hpa_metric'
+      replacement: 'bedrock_proxy_requests_per_second'
+
+  # Target discovery
+  targetLabels:
+  - app
+  - version
+
+---
+# PodMonitor for direct pod metrics (useful for VPA)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: bedrock-proxy-pods
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+    monitoring: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: bedrock-proxy
+
+  podMetricsEndpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 15s
+    # Relabel pod metrics for VPA
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'process_(cpu_seconds_total|resident_memory_bytes|virtual_memory_bytes)'
+      targetLabel: '__tmp_vpa_metric'
+      replacement: '${1}'

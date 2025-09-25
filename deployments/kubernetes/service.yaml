@@ -1,0 +1,64 @@
+---
+# Service - Internal LoadBalancer with dual protocol support
+apiVersion: v1
+kind: Service
+metadata:
+  name: bedrock-proxy-service
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+  annotations:
+    # AWS Load Balancer Controller annotations
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-xxx,subnet-yyy,subnet-zzz
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "30"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "5"
+    service.beta.kubernetes.io/aws-load-balancer-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-unhealthy-threshold: "3"
+    # HPA integration
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-connection-draining-timeout: "30"
+spec:
+  type: LoadBalancer
+  loadBalancerSourceRanges:
+  - "10.0.0.0/16"  # Only allow traffic from VPC CIDR
+  ports:
+  # HTTP port
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  # HTTPS port
+  - port: 443
+    targetPort: 8443  # Direct to container HTTPS port
+    protocol: TCP
+    name: https
+  selector:
+    app: bedrock-proxy
+
+---
+# Headless service for direct pod communication (for metrics scraping)
+apiVersion: v1
+kind: Service
+metadata:
+  name: bedrock-proxy-headless
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  clusterIP: None  # Headless service
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: bedrock-proxy
