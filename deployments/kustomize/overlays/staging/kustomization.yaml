@@ -1,0 +1,93 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: bedrock-proxy-staging
+
+namespace: bedrock-staging
+
+resources:
+  - ../../base
+
+commonLabels:
+  environment: staging
+  tier: staging
+
+namePrefix: staging-
+
+images:
+  - name: bedrock-proxy
+    newTag: "staging-latest"
+
+configMapGenerator:
+  - name: bedrock-proxy-config
+    behavior: merge
+    literals:
+      - AWS_REGION=us-east-1
+      - LOG_LEVEL=info
+
+replicas:
+  - name: bedrock-proxy
+    count: 2
+
+patches:
+  # Staging resource allocation (moderate)
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 150m
+            memory: 192Mi
+            ephemeral-storage: 750Mi
+          limits:
+            cpu: 750m
+            memory: 768Mi
+            ephemeral-storage: 1.5Gi
+
+  # Staging HPA configuration
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: bedrock-proxy-hpa
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+
+  # VPA with Initial mode for staging
+  - target:
+      kind: VerticalPodAutoscaler
+      name: bedrock-proxy-vpa
+    patch: |-
+      - op: replace
+        path: /spec/updatePolicy/updateMode
+        value: "Initial"
+
+  # Add staging annotations
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations/environment
+        value: "staging"
+
+  # Internal load balancer for staging
+  - target:
+      kind: Service
+      name: bedrock-proxy-service
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: LoadBalancer
+      - op: add
+        path: /metadata/annotations
+        value:
+          service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"

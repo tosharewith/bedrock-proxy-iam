@@ -1,0 +1,165 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: bedrock-proxy-production
+
+namespace: bedrock-system
+
+resources:
+  - ../../base
+  - vault-secret.yaml  # Vault integration for production
+
+commonLabels:
+  environment: production
+  tier: production
+  criticality: high
+
+images:
+  - name: bedrock-proxy
+    newTag: "1.0.0"  # Use specific version tags in production
+
+configMapGenerator:
+  - name: bedrock-proxy-config
+    behavior: merge
+    literals:
+      - AWS_REGION=us-east-1
+      - LOG_LEVEL=warn
+      - GIN_MODE=release
+
+replicas:
+  - name: bedrock-proxy
+    count: 5  # Higher baseline for production
+
+patches:
+  # Production resource allocation (optimized)
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 300m
+            memory: 384Mi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+            ephemeral-storage: 4Gi
+
+  # Production HPA - aggressive scaling
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: bedrock-proxy-hpa
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 5
+      - op: replace
+        path: /spec/maxReplicas
+        value: 50
+      - op: replace
+        path: /spec/metrics/0/resource/target/averageUtilization
+        value: 60  # More conservative CPU threshold
+
+  # VPA with Auto mode for production
+  - target:
+      kind: VerticalPodAutoscaler
+      name: bedrock-proxy-vpa
+    patch: |-
+      - op: replace
+        path: /spec/updatePolicy/updateMode
+        value: "Auto"
+      - op: replace
+        path: /spec/resourcePolicy/containerPolicies/0/maxAllowed/cpu
+        value: "4000m"
+      - op: replace
+        path: /spec/resourcePolicy/containerPolicies/0/maxAllowed/memory
+        value: "8Gi"
+
+  # Production PDB - stricter availability
+  - target:
+      kind: PodDisruptionBudget
+      name: bedrock-proxy-pdb
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 4  # Always keep 4 pods running
+
+  # Production annotations and labels
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations
+        value:
+          environment: "production"
+          monitoring.enabled: "true"
+          vault.hashicorp.com/agent-inject: "true"
+          vault.hashicorp.com/role: "bedrock-proxy-prod"
+          vault.hashicorp.com/agent-inject-secret-tls.crt: "secret/bedrock-proxy/tls"
+          vault.hashicorp.com/agent-inject-secret-tls.key: "secret/bedrock-proxy/tls"
+
+  # Production service with NLB
+  - target:
+      kind: Service
+      name: bedrock-proxy-service
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: LoadBalancer
+      - op: add
+        path: /metadata/annotations
+        value:
+          service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+          service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+          service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
+          service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+          service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+
+  # Production node affinity
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: add
+        path: /spec/template/spec/affinity/nodeAffinity
+        value:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: workload-type
+                operator: In
+                values: ["bedrock-proxy"]
+          - weight: 80
+            preference:
+              matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: ["m5.large", "m5.xlarge", "c5.large", "c5.xlarge"]
+
+  # Production priority class
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: add
+        path: /spec/template/spec/priorityClassName
+        value: "system-cluster-critical"
+
+  # Enhanced health checks for production
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/failureThreshold
+        value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/periodSeconds
+        value: 3

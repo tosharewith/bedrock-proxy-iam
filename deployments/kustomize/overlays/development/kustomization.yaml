@@ -1,0 +1,89 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: bedrock-proxy-development
+
+namespace: bedrock-development
+
+resources:
+  - ../../base
+
+commonLabels:
+  environment: development
+  tier: development
+
+namePrefix: dev-
+
+images:
+  - name: bedrock-proxy
+    newTag: "dev-latest"
+
+configMapGenerator:
+  - name: bedrock-proxy-config
+    behavior: merge
+    literals:
+      - GIN_MODE=debug
+      - LOG_LEVEL=debug
+      - AWS_REGION=us-west-2
+
+replicas:
+  - name: bedrock-proxy
+    count: 1
+
+patches:
+  # Development resource limits (smaller)
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+            ephemeral-storage: 512Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+            ephemeral-storage: 1Gi
+
+  # Disable HPA in development
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: bedrock-proxy-hpa
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+
+  # Disable VPA in development
+  - target:
+      kind: VerticalPodAutoscaler
+      name: bedrock-proxy-vpa
+    patch: |-
+      - op: replace
+        path: /spec/updatePolicy/updateMode
+        value: "Off"
+
+  # Enable debug annotations
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations/debug.enabled
+        value: "true"
+
+  # Development service type
+  - target:
+      kind: Service
+      name: bedrock-proxy-service
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort

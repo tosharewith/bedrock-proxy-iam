@@ -1,0 +1,42 @@
+---
+# VerticalPodAutoscaler for bedrock-proxy
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: bedrock-proxy-vpa
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+spec:
+  # Target the bedrock-proxy deployment
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: bedrock-proxy
+
+  # Update policy - how VPA should apply recommendations
+  updatePolicy:
+    updateMode: "Auto"  # Options: Off, Initial, Recreation, Auto
+
+  # Resource policy - constraints and recommendations
+  resourcePolicy:
+    containerPolicies:
+    - containerName: bedrock-proxy
+      # Minimum resources (safety net)
+      minAllowed:
+        cpu: 100m
+        memory: 128Mi
+      # Maximum resources (cost control)
+      maxAllowed:
+        cpu: 2000m    # 2 CPU cores max
+        memory: 4Gi   # 4GB RAM max
+      # Controlled resources
+      controlledResources:
+      - cpu
+      - memory
+      # How VPA scales resources
+      controlledValues: RequestsAndLimits  # Update both requests and limits
+
+  # Recommendation policy
+  recommenders:
+  - name: default

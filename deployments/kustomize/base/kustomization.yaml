@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: bedrock-proxy-base
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - vpa.yaml
+  - pdb.yaml
+  - servicemonitor.yaml
+  - networkpolicy.yaml
+
+commonLabels:
+  app.kubernetes.io/name: bedrock-proxy
+  app.kubernetes.io/part-of: bedrock-proxy
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: bedrock-proxy
+    newTag: "1.0.0"
+
+configMapGenerator:
+  - name: bedrock-proxy-config
+    literals:
+      - AWS_REGION=us-east-1
+      - GIN_MODE=release
+      - LOG_LEVEL=info
+      - AWS_SDK_LOAD_CONFIG=true
+      - AWS_EC2_METADATA_DISABLED=false
+
+secretGenerator: []
+
+replicas:
+  - name: bedrock-proxy
+    count: 3
+
+patches:
+  - target:
+      kind: Deployment
+      name: bedrock-proxy
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+            ephemeral-storage: 1Gi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+            ephemeral-storage: 2Gi
