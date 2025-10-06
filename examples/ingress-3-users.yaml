@@ -1,0 +1,125 @@
+---
+# Ingress configuration for 3-user setup
+# This exposes the Bedrock proxy via HTTPS with your domain
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bedrock-proxy-ingress
+  namespace: bedrock-system
+  annotations:
+    # AWS ALB Controller (for EKS)
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing  # or 'internal' for VPC-only
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+
+    # SSL/TLS Certificate (replace with your ACM certificate ARN)
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/xxx
+
+    # Security
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-2-2017-01
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+
+    # Optional: IP Whitelist (restrict to specific IPs)
+    # alb.ingress.kubernetes.io/inbound-cidrs: 203.0.113.0/24,198.51.100.0/24
+
+    # Optional: Rate limiting (requires API Gateway or similar)
+    # nginx.ingress.kubernetes.io/limit-rps: "10"
+
+spec:
+  rules:
+  - host: bedrock-proxy.example.com  # Replace with your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bedrock-proxy-service
+            port:
+              number: 80
+
+---
+# Alternative: NGINX Ingress (if not using AWS ALB)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bedrock-proxy-nginx
+  namespace: bedrock-system
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod  # For automatic SSL
+
+    # Security headers
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+
+    # Rate limiting (10 requests per second per IP)
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+
+    # Optional: IP whitelist
+    # nginx.ingress.kubernetes.io/whitelist-source-range: "203.0.113.0/24,198.51.100.0/24"
+
+    # CORS (if needed for browser clients)
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://your-app.com"
+
+spec:
+  tls:
+  - hosts:
+    - bedrock-proxy.example.com
+    secretName: bedrock-proxy-tls  # cert-manager will create this
+  rules:
+  - host: bedrock-proxy.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bedrock-proxy-service
+            port:
+              number: 80
+
+---
+# Optional: NetworkPolicy to restrict ingress access at pod level
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bedrock-proxy-ingress-only
+  namespace: bedrock-system
+spec:
+  podSelector:
+    matchLabels:
+      app: bedrock-proxy
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from ingress controller only
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx  # or kube-system for AWS ALB
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# DNS Configuration (Route53 example)
+# You'll need to create this in AWS Console or Terraform
+#
+# Type: A Record (Alias)
+# Name: bedrock-proxy.example.com
+# Value: <ALB-DNS-NAME> (from kubectl get ingress)
+#
+# Or with External DNS:
+apiVersion: v1
+kind: Service
+metadata:
+  name: bedrock-proxy-service
+  namespace: bedrock-system
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: bedrock-proxy.example.com
+spec:
+  type: LoadBalancer
+  # ... rest of service config
