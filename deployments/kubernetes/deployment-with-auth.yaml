@@ -1,0 +1,136 @@
+---
+# Deployment with authentication enabled
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bedrock-proxy
+  namespace: bedrock-system
+  labels:
+    app: bedrock-proxy
+    version: v1.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bedrock-proxy
+  template:
+    metadata:
+      labels:
+        app: bedrock-proxy
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: bedrock-proxy-sa
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+      - name: bedrock-proxy
+        image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/bedrock-proxy:v1.0.0
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+
+        env:
+        - name: PORT
+          value: "8080"
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-proxy-config
+              key: AWS_REGION
+        - name: GIN_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-proxy-config
+              key: GIN_MODE
+
+        # AWS IRSA
+        - name: AWS_ROLE_ARN
+          value: "arn:aws:iam::ACCOUNT_ID:role/bedrock-proxy-role"
+        - name: AWS_WEB_IDENTITY_TOKEN_FILE
+          value: "/var/run/secrets/eks.amazonaws.com/serviceaccount/token"
+
+        # Authentication configuration
+        - name: AUTH_ENABLED
+          value: "true"
+        - name: AUTH_MODE
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-auth-config
+              key: auth_mode
+        - name: RATE_LIMIT_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-auth-config
+              key: rate_limit_enabled
+        - name: RATE_LIMIT_RPM
+          valueFrom:
+            configMapKeyRef:
+              name: bedrock-auth-config
+              key: rate_limit_requests_per_minute
+
+        # API Keys from secret (as env vars)
+        envFrom:
+        - secretRef:
+            name: bedrock-api-keys
+
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          capabilities:
+            drop:
+            - ALL
+
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: auth-config
+          mountPath: /etc/bedrock/auth
+          readOnly: true
+
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: auth-config
+        configMap:
+          name: bedrock-auth-config
+
+      terminationGracePeriodSeconds: 30

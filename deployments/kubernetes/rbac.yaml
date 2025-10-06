@@ -1,0 +1,76 @@
+---
+# Role-based access control for proxy access
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bedrock-client-sa
+  namespace: bedrock-system
+  labels:
+    app: bedrock-client
+---
+# Role for pods that can access the proxy
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: bedrock-proxy-client
+  namespace: bedrock-system
+spec:
+  rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: ["bedrock-proxy-service"]
+    verbs: ["get"]
+---
+# Bind role to specific service accounts
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bedrock-proxy-client-binding
+  namespace: bedrock-system
+spec:
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: bedrock-proxy-client
+  subjects:
+  # Add authorized service accounts here
+  - kind: ServiceAccount
+    name: bedrock-client-sa
+    namespace: bedrock-system
+  # Example: Allow specific app
+  - kind: ServiceAccount
+    name: my-app-sa
+    namespace: my-app-namespace
+---
+# Updated Network Policy - restrict to authorized namespaces
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bedrock-proxy-ingress
+  namespace: bedrock-system
+spec:
+  podSelector:
+    matchLabels:
+      app: bedrock-proxy
+  policyTypes:
+  - Ingress
+  ingress:
+  # Only allow from specific authorized namespaces
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          bedrock-access: "allowed"
+    - podSelector:
+        matchLabels:
+          bedrock-client: "true"
+    ports:
+    - protocol: TCP
+      port: 8080
+  # Allow monitoring
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 8080

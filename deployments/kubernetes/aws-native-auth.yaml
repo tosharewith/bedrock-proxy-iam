@@ -1,0 +1,242 @@
+---
+# Option 1: AWS Cognito Integration for OAuth2/OIDC
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cognito-oauth-config
+  namespace: bedrock-system
+data:
+  cognito_user_pool_id: "us-east-1_XXXXXXXXX"
+  cognito_region: "us-east-1"
+  cognito_app_client_id: "xxxxxxxxxxxxxxxxxxxxx"
+  cognito_domain: "bedrock-auth.auth.us-east-1.amazoncognito.com"
+
+---
+# OAuth2 Proxy Deployment (Sidecar or Standalone)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bedrock-proxy-with-oauth
+  namespace: bedrock-system
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bedrock-proxy
+  template:
+    metadata:
+      labels:
+        app: bedrock-proxy
+    spec:
+      serviceAccountName: bedrock-proxy-sa
+      containers:
+      # Main Bedrock Proxy
+      - name: bedrock-proxy
+        image: ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/bedrock-proxy:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        - name: AWS_REGION
+          value: "us-east-1"
+
+      # OAuth2 Proxy Sidecar (for Cognito/Google/GitHub)
+      - name: oauth2-proxy
+        image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        args:
+        - --provider=oidc
+        - --provider-display-name=AWS Cognito
+        - --oidc-issuer-url=https://cognito-idp.us-east-1.amazonaws.com/us-east-1_XXXXXXXXX
+        - --upstream=http://localhost:8080
+        - --http-address=0.0.0.0:4180
+        - --email-domain=*
+        - --cookie-secure=true
+        - --cookie-secret=$(OAUTH2_COOKIE_SECRET)
+        - --pass-authorization-header=true
+        - --pass-user-headers=true
+        - --set-authorization-header=true
+        - --set-xauthrequest=true
+        env:
+        - name: OAUTH2_PROXY_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: cognito-oauth-secret
+              key: client-id
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cognito-oauth-secret
+              key: client-secret
+        - name: OAUTH2_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: cognito-oauth-secret
+              key: cookie-secret
+        ports:
+        - containerPort: 4180
+          name: oauth-http
+
+---
+# OAuth2 Proxy Secret (use External Secrets Operator in production)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cognito-oauth-secret
+  namespace: bedrock-system
+type: Opaque
+stringData:
+  client-id: "COGNITO_APP_CLIENT_ID"
+  client-secret: "COGNITO_APP_CLIENT_SECRET"
+  cookie-secret: "CHANGE_ME_32_CHAR_RANDOM_STRING"
+
+---
+# Service for OAuth2 Proxy
+apiVersion: v1
+kind: Service
+metadata:
+  name: bedrock-proxy-oauth
+  namespace: bedrock-system
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+    targetPort: 4180
+    protocol: TCP
+    name: https
+  selector:
+    app: bedrock-proxy
+
+---
+# Option 2: AWS Secrets Manager Integration
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: aws-secrets-manager
+  namespace: bedrock-system
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: us-east-1
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: bedrock-proxy-sa
+
+---
+# External Secret for API Keys from AWS Secrets Manager
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: bedrock-api-keys-external
+  namespace: bedrock-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: SecretStore
+  target:
+    name: bedrock-api-keys-from-sm
+    creationPolicy: Owner
+  data:
+  - secretKey: api-keys.json
+    remoteRef:
+      key: bedrock/api-keys
+      property: keys
+
+---
+# Option 3: AWS IAM Identity Center (SSO) Integration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-sso-config
+  namespace: bedrock-system
+data:
+  sso_region: "us-east-1"
+  sso_start_url: "https://d-xxxxxxxxxx.awsapps.com/start"
+  sso_role_name: "BedrockProxyAccess"
+
+---
+# Option 4: Amazon Verified Permissions Integration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: avp-config
+  namespace: bedrock-system
+data:
+  policy_store_id: "PSxxxxxxxxxxxxxxxxxx"
+  region: "us-east-1"
+  # Cedar policy for fine-grained authorization
+  cedar_policy: |
+    permit(
+      principal in Group::"BedrockAdmins",
+      action == Action::"InvokeModel",
+      resource in Application::"BedrockProxy"
+    );
+
+    permit(
+      principal in Group::"BedrockUsers",
+      action == Action::"InvokeModel",
+      resource in Application::"BedrockProxy"
+    ) when {
+      context.model in ["claude-3-sonnet", "claude-3-haiku"]
+    };
+
+---
+# Ingress with AWS ALB + Cognito Authentication
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bedrock-proxy-alb
+  namespace: bedrock-system
+  annotations:
+    # AWS ALB Controller
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:ACCOUNT:certificate/xxx
+
+    # Cognito Authentication at ALB
+    alb.ingress.kubernetes.io/auth-type: cognito
+    alb.ingress.kubernetes.io/auth-idp-cognito: |
+      {
+        "userPoolARN": "arn:aws:cognito-idp:us-east-1:ACCOUNT:userpool/us-east-1_XXXXX",
+        "userPoolClientID": "xxxxxxxxxxxxxxxxxxxxx",
+        "userPoolDomain": "bedrock-auth"
+      }
+    alb.ingress.kubernetes.io/auth-scope: "openid email profile"
+    alb.ingress.kubernetes.io/auth-session-cookie: "AWSELBAuthSessionCookie"
+    alb.ingress.kubernetes.io/auth-session-timeout: "3600"
+
+    # Security headers
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-2-2017-01
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+
+spec:
+  rules:
+  - host: bedrock-proxy.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: bedrock-proxy-service
+            port:
+              number: 80
+
+---
+# NetworkPolicy for App Mesh mTLS (if using service mesh)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appmesh-config
+  namespace: bedrock-system
+data:
+  mesh_name: "bedrock-mesh"
+  virtual_node_name: "bedrock-proxy-vn"
+  # App Mesh provides automatic mTLS between services
+  mtls_mode: "STRICT"
+  certificate_authority: "AWS_PRIVATE_CA"

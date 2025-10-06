@@ -142,15 +142,120 @@ curl -X POST https://localhost:8443/v1/bedrock/invoke-model \
   }'
 ```
 
-## Security
+## Security & Authentication
+
+### 🔐 Multi-Layer Security Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  Layer 1: Network (VPC, Security Groups)        │
+├─────────────────────────────────────────────────┤
+│  Layer 2: Kubernetes (RBAC, Network Policies)   │
+├─────────────────────────────────────────────────┤
+│  Layer 3: Application Auth (API Keys, OAuth2)   │
+├─────────────────────────────────────────────────┤
+│  Layer 4: 2FA/TOTP (Google Authenticator)       │
+├─────────────────────────────────────────────────┤
+│  Layer 5: AWS IAM (IRSA, Bedrock Access)        │
+└─────────────────────────────────────────────────┘
+```
+
+### Authentication Methods
+
+The proxy supports multiple enterprise-grade authentication methods:
+
+#### 1. **Database-Backed API Keys** (Production Recommended)
+- Individual API keys stored in embedded SQLite database
+- Bcrypt hashed keys for security
+- Per-user tracking and audit logging
+- Optional key expiration
+- Support for key revocation
+
+```bash
+# Quick setup with automated script
+./scripts/setup-auth.sh
+
+# Or manual setup
+kubectl create secret generic bedrock-api-keys \
+  --from-literal=API_KEY_USER1=$(openssl rand -hex 32) \
+  -n bedrock-system
+```
+
+#### 2. **TOTP/2FA (Google Authenticator)**
+- Time-based One-Time Passwords
+- Backup codes for account recovery
+- Per-API-key 2FA configuration
+- Compatible with Google Authenticator, Authy, etc.
+
+```bash
+# Enable 2FA
+export AUTH_ENABLED=true
+export REQUIRE_2FA=true
+```
+
+#### 3. **AWS Cognito + OAuth2/OIDC**
+- Enterprise SSO integration
+- Social login (Google, GitHub, etc.)
+- AWS ALB-integrated authentication
+- JWT token validation
+
+**See:** [`deployments/kubernetes/aws-native-auth.yaml`](deployments/kubernetes/aws-native-auth.yaml)
+
+#### 4. **AWS IAM Identity Center (SSO)**
+- Corporate directory integration
+- Multi-account access
+- Centralized user management
+
+#### 5. **Kubernetes Service Account**
+- Zero-config for K8s services
+- Automatic mTLS with service mesh
+- RBAC-based access control
 
 ### Built-in Security Features
 
 - **Container Security**: Distroless base image, non-root execution
 - **Network Security**: Private VPC deployment, network policies
-- **Authentication**: AWS IAM with IRSA integration
-- **Monitoring**: Comprehensive logging and metrics
+- **Authentication**: Multiple methods (API keys, OAuth2, TOTP, IAM)
+- **Audit Logging**: Comprehensive request/response tracking
+- **Rate Limiting**: Per-user request throttling
+- **Encryption**: TLS/HTTPS support, secrets encrypted at rest
 - **Compliance**: OWASP, NVD, and Trivy scanning in CI/CD
+
+### Quick Start - Secure Setup
+
+**5-Minute Setup** (API Keys + 2FA):
+
+```bash
+# 1. Run automated security setup
+./scripts/setup-auth.sh
+
+# 2. Deploy with auth enabled
+kubectl apply -f deployments/kubernetes/deployment-with-auth.yaml
+
+# 3. Get API key and enable 2FA
+API_KEY=$(kubectl get secret bedrock-api-keys -n bedrock-system -o jsonpath='{.data.API_KEY_ADMIN}' | base64 -d)
+
+# 4. Use with API key and TOTP
+curl -H "X-API-Key: $API_KEY" \
+     -H "X-TOTP-Code: 123456" \
+     https://bedrock-proxy/model/claude-3-sonnet/invoke
+```
+
+**AWS EKS Native** (Cognito OAuth2):
+
+```bash
+# Deploy with Cognito authentication
+kubectl apply -f deployments/kubernetes/aws-native-auth.yaml
+
+# Access via browser - redirects to AWS Cognito login
+https://bedrock-proxy.example.com
+```
+
+### Documentation
+
+- **[🚀 Security Quick Start](docs/SECURITY-QUICKSTART.md)** - 5-minute setup guide
+- **[📚 Complete Authorization Guide](docs/AUTHORIZATION.md)** - All auth methods
+- **[☁️ AWS EKS Integration](deployments/kubernetes/aws-native-auth.yaml)** - Native AWS auth
 
 ### Security Scanning
 
@@ -165,6 +270,9 @@ trivy image bedrock-proxy:latest
 
 # Go security check
 gosec ./...
+
+# Run all tests including security tests
+go test ./... -v
 ```
 
 ## Development
