@@ -5,9 +5,22 @@ Complete guide to configure Bedrock Proxy for exactly 3 users with network acces
 ## 📋 Overview
 
 This example shows how to:
-1. **Configure the proxy** to allow only 3 specific users
+1. **Configure the proxy** to allow only 3 specific users (via API keys)
 2. **Set up ingress** for external/internal network access
-3. **Configure client laptops** to use the proxy
+3. **Configure client laptops** to use the proxy (NO AWS credentials needed!)
+
+## 🎯 Key Architecture
+
+```
+User (API Key)  →  Proxy (validates key)  →  Bedrock (proxy uses IRSA)
+   Alice              ✓ API Key Auth          ✓ IAM/IRSA Auth
+   Bob                ✓ No AWS creds           ✓ Automatic
+   Charlie
+```
+
+**Users only need**: API Key (e.g., `bdrk_abc123...`)
+**Proxy handles**: AWS authentication via IRSA (embedded in EKS)
+**Users DON'T need**: AWS credentials, AWS CLI, IAM roles
 
 ---
 
@@ -317,12 +330,29 @@ kubectl get certificate -n bedrock-system
 - Their API key (from api-keys-3-users.txt)
 - Ingress URL (bedrock-proxy.example.com)
 - Client config (see client-laptop-config.md)
+- **NO AWS credentials needed!**
+
+**What Users DON'T Need:**
+- ❌ AWS credentials
+- ❌ AWS CLI
+- ❌ IAM role configuration
+- ❌ Access to AWS Console
+
+**Authentication Flow:**
+1. **User → Proxy**: API Key (`X-API-Key: bdrk_xxx`)
+2. **Proxy → Bedrock**: IAM/IRSA (automatic, embedded in EKS)
 
 **Security:**
 - ✅ Only 3 users have access (via unique API keys)
 - ✅ HTTPS encrypted communication
 - ✅ All requests are audited
 - ✅ Keys can be revoked anytime
+- ✅ AWS credentials managed by EKS (IRSA)
+- ✅ Users never see AWS credentials
 - ✅ Optional: IP whitelist, 2FA, VPN-only access
+
+**See Also:**
+- [Architecture Diagram](../docs/ARCHITECTURE.md) - Complete auth flow
+- [IRSA Configuration](../deployments/kubernetes/serviceaccount.yaml) - AWS IAM setup
 
 Your Bedrock proxy is now accessible to exactly 3 users! 🎉
