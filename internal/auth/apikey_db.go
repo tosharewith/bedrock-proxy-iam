@@ -273,6 +273,39 @@ func (db *APIKeyDB) GetAPIKeyByEmail(email string) (*APIKey, error) {
 	return &key, nil
 }
 
+// GetAPIKeyByID returns API key info by ID
+func (db *APIKeyDB) GetAPIKeyByID(id int64) (*APIKey, error) {
+	var key APIKey
+	var lastUsed, expires sql.NullTime
+
+	err := db.db.QueryRow(`
+		SELECT id, key_hash, name, email, description, is_active, created_at, last_used_at, expires_at, permissions, metadata
+		FROM api_keys
+		WHERE id = ? AND is_active = 1
+		LIMIT 1
+	`, id).Scan(
+		&key.ID, &key.KeyHash, &key.Name, &key.Email, &key.Description,
+		&key.IsActive, &key.CreatedAt, &lastUsed, &expires,
+		&key.Permissions, &key.Metadata,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("API key not found: %d", id)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get API key: %w", err)
+	}
+
+	if lastUsed.Valid {
+		key.LastUsedAt = &lastUsed.Time
+	}
+	if expires.Valid {
+		key.ExpiresAt = &expires.Time
+	}
+
+	return &key, nil
+}
+
 // Close closes the database connection
 func (db *APIKeyDB) Close() error {
 	return db.db.Close()
