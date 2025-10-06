@@ -15,7 +15,7 @@ func TestNewAWSSigner(t *testing.T) {
 		os.Unsetenv("AWS_SECRET_ACCESS_KEY")
 	}()
 
-	signer, err := NewAWSSigner("us-east-1", "bedrock-runtime")
+	signer, err := NewAWSSigner("us-east-1", "bedrock")
 	if err != nil {
 		t.Fatalf("Failed to create AWS signer: %v", err)
 	}
@@ -24,8 +24,8 @@ func TestNewAWSSigner(t *testing.T) {
 		t.Errorf("Expected region us-east-1, got %s", signer.region)
 	}
 
-	if signer.service != "bedrock-runtime" {
-		t.Errorf("Expected service bedrock-runtime, got %s", signer.service)
+	if signer.service != "bedrock" {
+		t.Errorf("Expected service bedrock, got %s", signer.service)
 	}
 }
 
@@ -53,7 +53,7 @@ func TestGetSignatureKey(t *testing.T) {
 
 	dateStamp := "20231025"
 	region := "us-east-1"
-	service := "bedrock-runtime"
+	service := "bedrock"
 	secretKey := "test-secret"
 
 	key := signer.getSignatureKey(dateStamp, region, service, secretKey)

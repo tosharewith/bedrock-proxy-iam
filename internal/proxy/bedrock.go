@@ -27,7 +27,7 @@ type BedrockProxy struct {
 
 // NewBedrockProxy creates a new Bedrock proxy with embedded IAM authentication
 func NewBedrockProxy(region string, healthChecker *health.Checker) (*BedrockProxy, error) {
-	signer, err := auth.NewAWSSigner(region, "bedrock-runtime")
+	signer, err := auth.NewAWSSigner(region, "bedrock")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AWS signer: %w", err)
 	}
