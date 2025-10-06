@@ -166,7 +166,28 @@ curl https://bedrock-proxy.example.com/health
 
 ## 🔒 Security Options
 
-### Option A: Network-Level Restriction (IP Whitelist)
+### Option A: Time-Based Authentication (TOTP/2FA) ⭐ Recommended
+
+Add Google Authenticator for time-based codes:
+
+```bash
+# 1. Generate TOTP secrets for 3 users
+./generate-totp-qr.sh
+
+# 2. Share QR codes with users (they scan with Google Authenticator)
+
+# 3. Enable 2FA requirement
+kubectl set env deployment/bedrock-proxy REQUIRE_2FA=true -n bedrock-system
+
+# 4. Users now need both API key + TOTP code
+curl -H "X-API-Key: $BEDROCK_API_KEY" \
+     -H "X-TOTP-Code: 123456" \
+     https://bedrock-proxy.example.com/health
+```
+
+**See:** [TOTP/2FA Setup Guide](totp-2fa-setup.md) | [User Quick Start](USER-QUICKSTART-2FA.md)
+
+### Option B: Network-Level Restriction (IP Whitelist)
 
 Restrict to specific IP addresses:
 
