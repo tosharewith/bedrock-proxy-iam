@@ -6,6 +6,7 @@
 *.dylib
 bedrock-proxy
 bedrock-proxy-*
+server
 
 # Test binary, built with `go test -c`
 *.test

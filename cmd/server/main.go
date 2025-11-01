@@ -12,7 +12,6 @@ import (
 	"github.com/bedrock-proxy/bedrock-iam-proxy/internal/health"
 	"github.com/bedrock-proxy/bedrock-iam-proxy/internal/middleware"
 	"github.com/bedrock-proxy/bedrock-iam-proxy/internal/proxy"
-	"github.com/bedrock-proxy/bedrock-iam-proxy/pkg/metrics"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -20,16 +19,20 @@ import (
 func main() {
 	// Configuration from environment
 	port := getEnv("PORT", "8080")
-	region := getEnv("AWS_REGION", "us-east-1")
+	tlsPort := getEnv("TLS_PORT", "8443")
+	region := getEnv("AWS_REGION", "sa-east-1")
 	ginMode := getEnv("GIN_MODE", "release")
 	authEnabled := getEnv("AUTH_ENABLED", "false") == "true"
 	authMode := getEnv("AUTH_MODE", "api_key")
+	tlsCertFile := getEnv("TLS_CERT_FILE", "/etc/tls/tls.crt")
+	tlsKeyFile := getEnv("TLS_KEY_FILE", "/etc/tls/tls.key")
+	tlsEnabled := getEnv("TLS_ENABLED", "false") == "true"
 
 	// Set Gin mode
 	gin.SetMode(ginMode)
 
 	// Initialize components
-	healthChecker := health.NewChecker(100, 10)
+	healthChecker := health.NewChecker()
 	bedrockProxy, err := proxy.NewBedrockProxy(region, healthChecker)
 	if err != nil {
 		log.Fatalf("Failed to create Bedrock proxy: %v", err)
@@ -97,12 +100,30 @@ func main() {
 	proxyGroup.Any("/bedrock/*path", bedrockProxy.Handler())
 	proxyGroup.Any("/model/*path", bedrockProxy.Handler())
 
-	// Start server
-	addr := fmt.Sprintf(":%s", port)
-	log.Printf("Starting Bedrock proxy on %s (region: %s)", addr, region)
+	// Start server(s)
+	if tlsEnabled {
+		// Start HTTP server in goroutine
+		go func() {
+			addr := fmt.Sprintf(":%s", port)
+			log.Printf("Starting HTTP server on %s (region: %s)", addr, region)
+			if err := router.Run(addr); err != nil {
+				log.Fatalf("Failed to start HTTP server: %v", err)
+			}
+		}()
 
-	if err := router.Run(addr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		// Start HTTPS/TLS server (blocking)
+		addrTLS := fmt.Sprintf(":%s", tlsPort)
+		log.Printf("Starting HTTPS/TLS server on %s (region: %s)", addrTLS, region)
+		if err := router.RunTLS(addrTLS, tlsCertFile, tlsKeyFile); err != nil {
+			log.Fatalf("Failed to start HTTPS/TLS server: %v", err)
+		}
+	} else {
+		// Start HTTP server only
+		addr := fmt.Sprintf(":%s", port)
+		log.Printf("Starting HTTP server on %s (region: %s)", addr, region)
+		if err := router.Run(addr); err != nil {
+			log.Fatalf("Failed to start HTTP server: %v", err)
+		}
 	}
 }
 

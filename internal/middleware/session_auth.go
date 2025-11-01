@@ -175,10 +175,3 @@ func HybridAuth(
 		c.Next()
 	}
 }
-
-// GetAPIKeyByID helper (add to apikey_db.go if not exists)
-func (db *APIKeyDB) GetAPIKeyByID(id int64) (*APIKey, error) {
-	// This should be added to internal/auth/apikey_db.go
-	// For now, placeholder
-	return nil, nil
-}

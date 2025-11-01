@@ -341,7 +341,7 @@ func (h *AuthHandler) RevokeSession(c *gin.Context) {
 		}
 	}
 
-	_, apiKeyID, err := h.sessionManager.ValidateSessionToken(currentToken)
+	_, _, err := h.sessionManager.ValidateSessionToken(currentToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Invalid session token",
