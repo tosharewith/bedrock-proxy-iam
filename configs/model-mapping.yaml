@@ -1,0 +1,372 @@
+# Model Mapping Configuration
+# Maps OpenAI-compatible model names to provider-specific implementations
+
+# Model name mappings
+model_mappings:
+  # GPT-4 family
+  gpt-4:
+    default_provider: openai
+    providers:
+      openai:
+        model: gpt-4-0125-preview
+        api_version: "2024-02-01"
+      azure:
+        deployment: gpt-4
+        api_version: "2024-02-15-preview"
+
+  gpt-4-turbo:
+    default_provider: openai
+    providers:
+      openai:
+        model: gpt-4-turbo-preview
+
+  gpt-4-turbo-preview:
+    default_provider: openai
+    providers:
+      openai:
+        model: gpt-4-turbo-preview
+
+  # GPT-3.5 family
+  gpt-3.5-turbo:
+    default_provider: openai
+    providers:
+      openai:
+        model: gpt-3.5-turbo-0125
+      azure:
+        deployment: gpt-35-turbo
+        api_version: "2024-02-15-preview"
+
+  # Claude 3 family - Opus
+  claude-3-opus:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-opus-20240229-v1:0
+        region: us-east-1
+      anthropic:
+        model: claude-3-opus-20240229
+        api_version: "2023-06-01"
+
+  claude-3-opus-20240229:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-opus-20240229-v1:0
+      anthropic:
+        model: claude-3-opus-20240229
+
+  # Claude 3 family - Sonnet
+  claude-3-sonnet:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-sonnet-20240229-v1:0
+        region: us-east-1
+      anthropic:
+        model: claude-3-sonnet-20240229
+        api_version: "2023-06-01"
+      vertex:
+        model: claude-3-sonnet@20240229
+        location: us-central1
+
+  claude-3-sonnet-20240229:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-sonnet-20240229-v1:0
+      anthropic:
+        model: claude-3-sonnet-20240229
+
+  # Claude 3 family - Haiku
+  claude-3-haiku:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-haiku-20240307-v1:0
+        region: us-east-1
+      anthropic:
+        model: claude-3-haiku-20240307
+        api_version: "2023-06-01"
+
+  claude-3-haiku-20240307:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-haiku-20240307-v1:0
+      anthropic:
+        model: claude-3-haiku-20240307
+
+  # Claude 3.5 Sonnet
+  claude-3-5-sonnet:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-5-sonnet-20240620-v1:0
+        region: us-east-1
+      anthropic:
+        model: claude-3-5-sonnet-20240620
+
+  claude-3-5-sonnet-20240620:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: anthropic.claude-3-5-sonnet-20240620-v1:0
+      anthropic:
+        model: claude-3-5-sonnet-20240620
+
+  # Google Gemini family
+  gemini-pro:
+    default_provider: vertex
+    providers:
+      vertex:
+        model: gemini-1.5-pro
+        location: us-central1
+
+  gemini-1.5-pro:
+    default_provider: vertex
+    providers:
+      vertex:
+        model: gemini-1.5-pro
+        location: us-central1
+
+  gemini-flash:
+    default_provider: vertex
+    providers:
+      vertex:
+        model: gemini-1.5-flash
+        location: us-central1
+
+  gemini-1.5-flash:
+    default_provider: vertex
+    providers:
+      vertex:
+        model: gemini-1.5-flash
+        location: us-central1
+
+  # Amazon Titan models (Bedrock only)
+  amazon-titan-text-express:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: amazon.titan-text-express-v1
+        region: us-east-1
+
+  amazon-titan-text-lite:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: amazon.titan-text-lite-v1
+        region: us-east-1
+
+  amazon-titan-embed-text:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: amazon.titan-embed-text-v1
+        region: us-east-1
+
+  # Meta Llama models (Bedrock)
+  llama2-13b:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: meta.llama2-13b-chat-v1
+        region: us-east-1
+
+  llama2-70b:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: meta.llama2-70b-chat-v1
+        region: us-east-1
+
+  # Mistral models
+  mistral-7b:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: mistral.mistral-7b-instruct-v0:2
+        region: us-east-1
+
+  mistral-8x7b:
+    default_provider: bedrock
+    providers:
+      bedrock:
+        model: mistral.mixtral-8x7b-instruct-v0:1
+        region: us-east-1
+
+  # IBM Watson (watsonx.ai) models
+  granite-13b-chat:
+    default_provider: ibm
+    providers:
+      ibm:
+        model: ibm/granite-13b-chat-v2
+        project_id: ${IBM_PROJECT_ID}
+
+  granite-13b-instruct:
+    default_provider: ibm
+    providers:
+      ibm:
+        model: ibm/granite-13b-instruct-v2
+        project_id: ${IBM_PROJECT_ID}
+
+  llama3-70b-instruct:
+    default_provider: ibm
+    providers:
+      ibm:
+        model: meta-llama/llama-3-70b-instruct
+        project_id: ${IBM_PROJECT_ID}
+      bedrock:
+        model: meta.llama3-70b-instruct-v1:0
+        region: us-east-1
+
+  # Oracle Cloud AI models
+  cohere-command-r-plus:
+    default_provider: oracle
+    providers:
+      oracle:
+        model: cohere.command-r-plus
+        compartment_id: ${ORACLE_COMPARTMENT_ID}
+
+  cohere-command-r:
+    default_provider: oracle
+    providers:
+      oracle:
+        model: cohere.command-r-16k
+        compartment_id: ${ORACLE_COMPARTMENT_ID}
+
+  # Special/Custom models
+  gpt-oss-harmony:
+    default_provider: openai
+    providers:
+      openai:
+        model: gpt-4-turbo-preview
+        # Uses custom transformation (see transformations.yaml)
+        transformation: harmony
+
+# Provider routing rules
+routing:
+  # Pattern-based routing (regex patterns)
+  patterns:
+    - pattern: "^gpt-"
+      default_provider: openai
+      description: "Route GPT models to OpenAI by default"
+
+    - pattern: "^claude-"
+      default_provider: bedrock
+      description: "Route Claude models to Bedrock by default"
+
+    - pattern: "^gemini-"
+      default_provider: vertex
+      description: "Route Gemini models to Vertex AI"
+
+    - pattern: "^amazon-titan-"
+      default_provider: bedrock
+      description: "Route Titan models to Bedrock"
+
+    - pattern: "^llama"
+      default_provider: bedrock
+      description: "Route Llama models to Bedrock"
+
+    - pattern: "^mistral"
+      default_provider: bedrock
+      description: "Route Mistral models to Bedrock"
+
+    - pattern: "^granite-"
+      default_provider: ibm
+      description: "Route IBM Granite models to IBM Watson"
+
+    - pattern: "^cohere-"
+      default_provider: oracle
+      description: "Route Cohere models to Oracle Cloud AI"
+
+    - pattern: "^gpt-oss-"
+      default_provider: openai
+      description: "Route GPT-OSS models to OpenAI with transformations"
+
+  # Fallback behavior when model not found or provider fails
+  fallback:
+    enabled: true
+    # Try providers in this order
+    providers:
+      - bedrock
+      - anthropic
+      - openai
+      - azure
+      - vertex
+      - ibm
+      - oracle
+    # Maximum number of fallback attempts
+    max_attempts: 2
+
+  # Load balancing configuration (future enhancement)
+  load_balancing:
+    enabled: false
+    strategy: round_robin  # Options: round_robin, least_latency, random, cost_optimized
+
+# Provider-specific configurations
+providers:
+  bedrock:
+    enabled: true
+    region: us-east-1
+    timeout: 120s
+    max_retries: 3
+    retry_delay: 1s
+
+  azure:
+    enabled: true
+    endpoint: ${AZURE_OPENAI_ENDPOINT}
+    api_version: "2024-02-15-preview"
+    timeout: 120s
+    max_retries: 3
+
+  openai:
+    enabled: true
+    base_url: https://api.openai.com/v1
+    timeout: 120s
+    max_retries: 3
+
+  anthropic:
+    enabled: true
+    base_url: https://api.anthropic.com
+    api_version: "2023-06-01"
+    timeout: 120s
+    max_retries: 3
+
+  vertex:
+    enabled: true
+    project_id: ${GCP_PROJECT_ID}
+    location: us-central1
+    timeout: 120s
+    max_retries: 3
+
+  ibm:
+    enabled: true
+    base_url: https://us-south.ml.cloud.ibm.com
+    project_id: ${IBM_PROJECT_ID}
+    timeout: 120s
+    max_retries: 3
+
+  oracle:
+    enabled: true
+    endpoint: ${ORACLE_ENDPOINT}
+    compartment_id: ${ORACLE_COMPARTMENT_ID}
+    timeout: 120s
+    max_retries: 3
+
+# Feature flags
+features:
+  # Enable OpenAI-compatible API
+  openai_compatibility: true
+
+  # Enable streaming for all providers
+  streaming: true
+
+  # Enable cost tracking
+  cost_tracking: true
+
+  # Enable automatic fallback
+  auto_fallback: true
+
+  # Enable response caching
+  response_caching: false

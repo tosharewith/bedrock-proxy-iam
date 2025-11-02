@@ -1,0 +1,226 @@
+# Parameterized Transformation Configuration
+# This file defines custom transformations for specific models or providers
+# Use this to handle special cases, custom prompts, or model-specific adaptations
+
+# Global transformation settings
+global:
+  # Enable/disable transformations globally
+  enabled: true
+
+  # Default behavior for unknown models
+  default_behavior: passthrough
+
+# Model-specific transformations
+transformations:
+  # Example: GPT-OSS Harmony transformation
+  - model_pattern: "gpt-oss-harmony.*"
+    provider: openai
+    transformations:
+      # Pre-process: Add system message or modify prompt
+      pre_process:
+        - type: inject_system_message
+          content: "You are a helpful AI assistant optimized for open-source collaboration."
+        - type: format_messages
+          format: harmony  # Custom format for this model
+
+      # Post-process: Modify response
+      post_process:
+        - type: strip_prefix
+          prefix: "AI:"
+        - type: format_code_blocks
+          style: markdown
+
+      # Parameter adjustments
+      parameter_overrides:
+        temperature: 0.7
+        max_tokens: 2048
+        top_p: 0.95
+
+  # Azure-specific transformations
+  - model_pattern: "gpt-4.*"
+    provider: azure
+    transformations:
+      pre_process:
+        - type: add_deployment_mapping
+          # Map OpenAI model names to Azure deployment names
+          mappings:
+            "gpt-4": "gpt-4-deployment"
+            "gpt-4-turbo": "gpt-4-turbo-deployment"
+            "gpt-3.5-turbo": "gpt-35-turbo-deployment"
+
+  # Anthropic Claude transformations
+  - model_pattern: "claude-.*"
+    provider: anthropic
+    transformations:
+      pre_process:
+        - type: adjust_system_messages
+          # Claude handles system messages differently
+          behavior: extract_to_system_param
+
+      parameter_overrides:
+        # Claude requires max_tokens
+        max_tokens: 4096
+
+  # Vertex AI Gemini transformations
+  - model_pattern: "gemini-.*"
+    provider: vertex
+    transformations:
+      pre_process:
+        - type: role_mapping
+          # Map OpenAI roles to Vertex roles
+          mappings:
+            assistant: model
+            system: user  # Vertex puts system in systemInstruction
+
+      post_process:
+        - type: role_mapping
+          mappings:
+            model: assistant
+
+  # IBM Watson transformations
+  - model_pattern: "ibm/granite-.*|meta-llama/.*"
+    provider: ibm
+    transformations:
+      pre_process:
+        - type: flatten_to_prompt
+          # IBM's simple API needs flattened prompt
+          format: "{{role}}: {{content}}\n\n"
+
+      parameter_overrides:
+        max_new_tokens: 1024
+
+  # Oracle Cloud AI transformations
+  - model_pattern: "cohere\\..*|meta\\.llama-.*"
+    provider: oracle
+    transformations:
+      pre_process:
+        - type: role_uppercase
+          # Oracle uses uppercase roles
+          roles: [USER, ASSISTANT, SYSTEM]
+
+      post_process:
+        - type: role_lowercase
+
+# Provider-level transformations
+# These apply to ALL models from a specific provider
+provider_transformations:
+  bedrock:
+    # Use Converse API for all Bedrock models
+    api_version: converse
+    transformations:
+      pre_process:
+        - type: converse_format
+      post_process:
+        - type: from_converse_format
+
+  azure:
+    transformations:
+      pre_process:
+        - type: add_api_version
+          version: "2024-02-15-preview"
+
+  vertex:
+    transformations:
+      pre_process:
+        - type: add_project_location
+          # Will be populated from provider config
+
+# Custom format definitions
+formats:
+  harmony:
+    # Custom message format for GPT-OSS Harmony
+    message_template: |
+      {% if role == 'system' %}
+      [SYSTEM] {{ content }}
+      {% elif role == 'user' %}
+      [USER] {{ content }}
+      {% elif role == 'assistant' %}
+      [ASSISTANT] {{ content }}
+      {% endif %}
+
+    separator: "\n\n"
+
+  simple_chat:
+    # Simple chat format
+    message_template: "{{ role }}: {{ content }}"
+    separator: "\n"
+
+# Transformation rules
+# Define reusable transformation rules
+rules:
+  strip_prefix:
+    description: "Remove a prefix from generated text"
+    parameters:
+      - prefix
+
+  inject_system_message:
+    description: "Add a system message to the conversation"
+    parameters:
+      - content
+      - position  # start or end
+
+  role_mapping:
+    description: "Map role names between formats"
+    parameters:
+      - mappings
+
+  format_messages:
+    description: "Format messages using a template"
+    parameters:
+      - format
+
+  parameter_overrides:
+    description: "Override request parameters"
+    parameters:
+      - temperature
+      - max_tokens
+      - top_p
+      - top_k
+      - frequency_penalty
+      - presence_penalty
+
+# Special model configurations
+special_models:
+  # Models that require special handling
+  "gpt-oss-harmony-v1":
+    description: "GPT-OSS Harmony model with custom prompt engineering"
+    base_model: "gpt-4"
+    provider: openai
+    system_prompt: |
+      You are GPT-OSS Harmony, an AI assistant specialized in open-source
+      software development, collaboration, and community engagement.
+    transformations:
+      - inject_system_message
+      - format_harmony
+
+  "claude-code-assistant":
+    description: "Claude optimized for coding tasks"
+    base_model: "claude-3-5-sonnet-20241022"
+    provider: anthropic
+    system_prompt: |
+      You are a helpful coding assistant. Always provide clear,
+      well-documented code with explanations.
+    transformations:
+      - extract_system_to_param
+      - ensure_max_tokens
+
+# Validation rules
+validation:
+  # Validate requests before transformation
+  enabled: true
+
+  rules:
+    - name: require_max_tokens_for_claude
+      condition: provider == 'anthropic'
+      action: set_default
+      default_value: 4096
+
+    - name: validate_temperature
+      condition: temperature > 2.0 or temperature < 0.0
+      action: reject
+      message: "Temperature must be between 0.0 and 2.0"
+
+    - name: validate_model_exists
+      condition: model not in available_models
+      action: suggest_alternative
+      fallback_provider: bedrock
