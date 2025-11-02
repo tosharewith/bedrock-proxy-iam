@@ -107,30 +107,68 @@ func (h *OpenAIHandler) handleNonStreamingRequest(
 	var providerReq *providers.ProviderRequest
 	var err error
 
-	if provider.Name() == "bedrock" {
-		providerReq, _, err = translator.TranslateOpenAIToConverseAPI(req)
-	} else {
-		// For other providers, will implement their specific translators
-		c.JSON(http.StatusNotImplemented, translator.ErrorResponse{
-			Error: translator.ErrorDetail{
-				Message: fmt.Sprintf("Provider %s not yet implemented", provider.Name()),
-				Type:    "not_implemented_error",
-				Code:    "provider_not_implemented",
-			},
-		})
-		return
-	}
+	providerName := provider.Name()
 
-	if err != nil {
-		log.Printf("Translation error: %v", err)
-		c.JSON(http.StatusBadRequest, translator.ErrorResponse{
-			Error: translator.ErrorDetail{
-				Message: fmt.Sprintf("Failed to translate request: %v", err),
-				Type:    "invalid_request_error",
-				Code:    "translation_failed",
+	if providerName == "bedrock" {
+		// Bedrock uses Converse API
+		providerReq, _, err = translator.TranslateOpenAIToConverseAPI(req)
+		if err != nil {
+			log.Printf("Translation error: %v", err)
+			c.JSON(http.StatusBadRequest, translator.ErrorResponse{
+				Error: translator.ErrorDetail{
+					Message: fmt.Sprintf("Failed to translate request: %v", err),
+					Type:    "invalid_request_error",
+					Code:    "translation_failed",
+				},
+			})
+			return
+		}
+	} else if providerName == "openai" || providerName == "azure" {
+		// OpenAI and Azure speak OpenAI natively - pass through
+		reqBody, err := json.Marshal(req)
+		if err != nil {
+			log.Printf("Failed to marshal request: %v", err)
+			c.JSON(http.StatusBadRequest, translator.ErrorResponse{
+				Error: translator.ErrorDetail{
+					Message: "Failed to marshal request",
+					Type:    "invalid_request_error",
+					Code:    "marshal_failed",
+				},
+			})
+			return
+		}
+		providerReq = &providers.ProviderRequest{
+			Method: "POST",
+			Path:   "/chat/completions",
+			Headers: map[string]string{
+				"Content-Type": "application/json",
 			},
-		})
-		return
+			Body:    reqBody,
+			Context: c.Request.Context(),
+		}
+	} else {
+		// Anthropic, Vertex, IBM, Oracle handle translation in their Invoke method
+		reqBody, err := json.Marshal(req)
+		if err != nil {
+			log.Printf("Failed to marshal request: %v", err)
+			c.JSON(http.StatusBadRequest, translator.ErrorResponse{
+				Error: translator.ErrorDetail{
+					Message: "Failed to marshal request",
+					Type:    "invalid_request_error",
+					Code:    "marshal_failed",
+				},
+			})
+			return
+		}
+		providerReq = &providers.ProviderRequest{
+			Method: "POST",
+			Path:   "/chat/completions",
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			Body:    reqBody,
+			Context: c.Request.Context(),
+		}
 	}
 
 	// Invoke provider
@@ -141,10 +179,27 @@ func (h *OpenAIHandler) handleNonStreamingRequest(
 		return
 	}
 
-	// Parse provider response
-	if provider.Name() == "bedrock" {
+	// Parse provider response and translate if needed
+	var openaiResp *translator.ChatCompletionResponse
+
+	if providerName == "bedrock" {
+		// Bedrock returns Converse API format - translate to OpenAI
 		var converseResp translator.ConverseResponse
 		if err := json.Unmarshal(providerResp.Body, &converseResp); err != nil {
+			log.Printf("Failed to parse Bedrock response: %v", err)
+			c.JSON(http.StatusInternalServerError, translator.ErrorResponse{
+				Error: translator.ErrorDetail{
+					Message: "Failed to parse provider response",
+					Type:    "internal_error",
+					Code:    "response_parse_error",
+				},
+			})
+			return
+		}
+		openaiResp = translator.TranslateConverseToOpenAI(&converseResp, req.Model, requestID)
+	} else {
+		// OpenAI, Azure, Anthropic, Vertex, IBM, Oracle return OpenAI format (or already translated)
+		if err := json.Unmarshal(providerResp.Body, &openaiResp); err != nil {
 			log.Printf("Failed to parse provider response: %v", err)
 			c.JSON(http.StatusInternalServerError, translator.ErrorResponse{
 				Error: translator.ErrorDetail{
@@ -155,18 +210,18 @@ func (h *OpenAIHandler) handleNonStreamingRequest(
 			})
 			return
 		}
-
-		// Translate back to OpenAI format
-		openaiResp := translator.TranslateConverseToOpenAI(&converseResp, req.Model, requestID)
-		openaiResp.Created = startTime.Unix()
-
-		// Record metrics
-		duration := time.Since(startTime)
-		metrics.RequestDuration.WithLabelValues("POST", "200").Observe(duration.Seconds())
-		metrics.RequestsTotal.WithLabelValues("POST", "200").Inc()
-
-		c.JSON(http.StatusOK, openaiResp)
 	}
+
+	// Set metadata
+	openaiResp.ID = requestID
+	openaiResp.Created = startTime.Unix()
+
+	// Record metrics
+	duration := time.Since(startTime)
+	metrics.RequestDuration.WithLabelValues("POST", "200").Observe(duration.Seconds())
+	metrics.RequestsTotal.WithLabelValues("POST", "200").Inc()
+
+	c.JSON(http.StatusOK, openaiResp)
 }
 
 // handleStreamingRequest handles streaming chat completion
